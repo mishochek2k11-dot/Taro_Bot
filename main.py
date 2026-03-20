@@ -101,8 +101,14 @@ def get_card():
 
 def send_photo(chat_id, image_name, caption):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
-    image_url = f"https://taro-bot-rho.vercel.app/images/{image_name}"
-    requests.post(url, json={"chat_id": chat_id, "photo": image_url, "caption": caption, "parse_mode": "Markdown"})
+    try:
+        with open(f"images/{image_name}", "rb") as img:
+            files = {"photo": img}
+            data = {"chat_id": chat_id, "caption": caption, "parse_mode": "Markdown"}
+            requests.post(url, data=data, files=files)
+    except Exception as e:
+        print(f"Photo error: {e}")
+        send_message(chat_id, f"🔮 **{caption}**\n\n(картинка не загрузилась)")
 
 def send_message(chat_id, text, keyboard=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
