@@ -3,7 +3,15 @@ import json
 import logging
 import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    PreCheckoutQueryHandler,
+    MessageHandler,
+    filters,
+    ContextTypes
+)
 from config import BOT_TOKEN, PREMIUM_PRICE_STARS, FREE_ATTEMPTS_PER_DAY
 
 logging.basicConfig(level=logging.INFO)
@@ -69,6 +77,35 @@ async def card_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user["premium"]:
         user["attempts"] += 1
 
+async def three_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    
+    if user_id not in users:
+        users[user_id] = {"attempts": 0, "premium": False}
+    
+    user = users[user_id]
+    if not user["premium"] and user["attempts"] >= FREE_ATTEMPTS_PER_DAY:
+        await query.edit_message_text(
+            f"❌ Лимит {FREE_ATTEMPTS_PER_DAY} бесплатных раскладов исчерпан.\n"
+            f"Купи подписку за {PREMIUM_PRICE_STARS} Stars в месяц."
+        )
+        return
+    
+    # Три случайные карты
+    cards = ["Шут", "Маг", "Верховная Жрица", "Императрица", "Император", "Влюблённые"]
+    positions = ["Прошлое", "Настоящее", "Будущее"]
+    result = "🃏 **Расклад на три карты**\n\n"
+    for i in range(3):
+        card = random.choice(cards)
+        result += f"{positions[i]}: {card}\n"
+    
+    await query.edit_message_text(result)
+    
+    if not user["premium"]:
+        user["attempts"] += 1
+
 async def buy_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -97,6 +134,7 @@ application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 application.add_handler(CommandHandler("start", start_command))
 application.add_handler(CallbackQueryHandler(card_callback, pattern="^card$"))
+application.add_handler(CallbackQueryHandler(three_callback, pattern="^three$"))
 application.add_handler(CallbackQueryHandler(buy_callback, pattern="^buy$"))
 application.add_handler(PreCheckoutQueryHandler(pre_checkout))
 application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment))
