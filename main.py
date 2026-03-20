@@ -18,21 +18,4 @@ def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
     # Регистрируем обработчики команд
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("card", card_command))
-    application.add_handler(CommandHandler("three", three_command))
-    application.add_handler(CommandHandler("question", question_command))
-    application.add_handler(CommandHandler("buy", buy_command))
-    application.add_handler(CommandHandler("status", status_command))
-    application.add_handler(CommandHandler("stats", stats_command))
-
-    # Обработчики платежей
-    application.add_handler(CallbackQueryHandler(buy_callback, pattern="^buy_premium$"))
-    application.add_handler(PreCheckoutQueryHandler(pre_checkout))
-    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment))
-
-    # Запускаем бота
-    application.run_polling()
-
-if __name__ == '__main__':
-    main()
+    application.add_handler(CommandHandler("
