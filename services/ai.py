@@ -1,4 +1,4 @@
-import google.generativeai as genai
+import google.genai as genai
 from config import GEMINI_API_KEY
 
 genai.configure(api_key=GEMINI_API_KEY)
