@@ -2,165 +2,123 @@ from http.server import BaseHTTPRequestHandler
 import json
 import logging
 import random
+from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    CallbackQueryHandler,
-    PreCheckoutQueryHandler,
-    MessageHandler,
-    filters,
-    ContextTypes
-)
-from config import BOT_TOKEN, PREMIUM_PRICE_STARS, FREE_ATTEMPTS_PER_DAY
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, PreCheckoutQueryHandler, MessageHandler, filters
+from config import BOT_TOKEN, PREMIUM_PRICE_STARS
 
 logging.basicConfig(level=logging.INFO)
 
-# === ВСЯ ЛОГИКА БОТА ПРЯМО ЗДЕСЬ ===
+FREE_ATTEMPTS = 3  # 3 попытки в месяц
 
-# Словарь пользователей (в памяти, без базы данных)
 users = {}
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in users:
-        users[user_id] = {"attempts": 0, "premium": False}
+async def start(update, context):
+    uid = update.effective_user.id
+    if uid not in users:
+        users[uid] = {"attempts": 0, "premium": False, "month": datetime.now().strftime("%Y-%m")}
     
-    keyboard = [
-        [InlineKeyboardButton("🔮 Одна карта", callback_data="card")],
-        [InlineKeyboardButton("🃏 Три карты", callback_data="three")],
-        [InlineKeyboardButton("❓ Задать вопрос", callback_data="question")],
-        [InlineKeyboardButton("🌟 Купить подписку", callback_data="buy")]
-    ]
-    await update.message.reply_text(
-        f"✨ Привет! Я бот Таро.\n\n"
-        f"🔥 {FREE_ATTEMPTS_PER_DAY} бесплатных раскладов в день\n"
-        f"🌟 Премиум: безлимит + AI\n\n"
-        f"Выбери:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    keyboard = [[InlineKeyboardButton("🔮 Карта", callback_data="card")],
+                [InlineKeyboardButton("🃏 3 карты", callback_data="three")],
+                [InlineKeyboardButton("🌟 Подписка", callback_data="buy")]]
+    await update.message.reply_text("✨ Привет! 3 бесплатных расклада в месяц.", reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def card_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
+async def card(update, context):
+    q = update.callback_query
+    await q.answer()
+    uid = q.from_user.id
+    now = datetime.now().strftime("%Y-%m")
     
-    if user_id not in users:
-        users[user_id] = {"attempts": 0, "premium": False}
+    if uid not in users:
+        users[uid] = {"attempts": 0, "premium": False, "month": now}
+    u = users[uid]
     
-    user = users[user_id]
-    if not user["premium"] and user["attempts"] >= FREE_ATTEMPTS_PER_DAY:
-        await query.edit_message_text(
-            f"❌ Лимит {FREE_ATTEMPTS_PER_DAY} бесплатных раскладов исчерпан.\n"
-            f"Купи подписку за {PREMIUM_PRICE_STARS} Stars в месяц."
-        )
+    if u["month"] != now:
+        u["attempts"] = 0
+        u["month"] = now
+    
+    if not u["premium"] and u["attempts"] >= FREE_ATTEMPTS:
+        await q.edit_message_text(f"❌ Лимит {FREE_ATTEMPTS} раскладов в месяц. Купи подписку за {PREMIUM_PRICE_STARS} Stars.")
         return
     
-    # Случайная карта
-    cards = ["Шут", "Маг", "Верховная Жрица", "Императрица", "Император", "Влюблённые"]
-    card = random.choice(cards)
-    meanings = {
-        "Шут": "Новые начинания, спонтанность",
-        "Маг": "Сила воли, мастерство",
-        "Верховная Жрица": "Интуиция, тайные знания",
-        "Императрица": "Изобилие, плодородие",
-        "Император": "Власть, структура",
-        "Влюблённые": "Выбор, отношения"
-    }
-    meaning = meanings.get(card, "Глубокое значение")
+    cards = ["Шут", "Маг", "Жрица", "Императрица", "Император", "Влюблённые"]
+    val = {"Шут": "Новое начало", "Маг": "Сила", "Жрица": "Интуиция", "Императрица": "Изобилие", "Император": "Власть", "Влюблённые": "Выбор"}
+    c = random.choice(cards)
+    text = f"🔮 {c}\n{val[c]}"
     
-    await query.edit_message_text(
-        f"🔮 **{card}**\n\n{meaning}\n\n"
-        f"Осталось попыток: {FREE_ATTEMPTS_PER_DAY - user['attempts'] - 1 if not user['premium'] else '♾️'}"
-    )
+    if not u["premium"]:
+        u["attempts"] += 1
+        text += f"\n\nОсталось: {FREE_ATTEMPTS - u['attempts']} из {FREE_ATTEMPTS}"
+    else:
+        text += "\n♾️ Премиум"
     
-    if not user["premium"]:
-        user["attempts"] += 1
+    await q.edit_message_text(text)
 
-async def three_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
+async def three(update, context):
+    q = update.callback_query
+    await q.answer()
+    uid = q.from_user.id
+    now = datetime.now().strftime("%Y-%m")
     
-    if user_id not in users:
-        users[user_id] = {"attempts": 0, "premium": False}
+    if uid not in users:
+        users[uid] = {"attempts": 0, "premium": False, "month": now}
+    u = users[uid]
     
-    user = users[user_id]
-    if not user["premium"] and user["attempts"] >= FREE_ATTEMPTS_PER_DAY:
-        await query.edit_message_text(
-            f"❌ Лимит {FREE_ATTEMPTS_PER_DAY} бесплатных раскладов исчерпан.\n"
-            f"Купи подписку за {PREMIUM_PRICE_STARS} Stars в месяц."
-        )
+    if u["month"] != now:
+        u["attempts"] = 0
+        u["month"] = now
+    
+    if not u["premium"] and u["attempts"] >= FREE_ATTEMPTS:
+        await q.edit_message_text(f"❌ Лимит {FREE_ATTEMPTS} раскладов в месяц. Купи подписку за {PREMIUM_PRICE_STARS} Stars.")
         return
     
-    # Три случайные карты
-    cards = ["Шут", "Маг", "Верховная Жрица", "Императрица", "Император", "Влюблённые"]
-    positions = ["Прошлое", "Настоящее", "Будущее"]
-    result = "🃏 **Расклад на три карты**\n\n"
+    cards = ["Шут", "Маг", "Жрица", "Императрица", "Император", "Влюблённые"]
+    pos = ["Прошлое", "Настоящее", "Будущее"]
+    text = "🃏 Расклад\n"
     for i in range(3):
-        card = random.choice(cards)
-        result += f"{positions[i]}: {card}\n"
+        text += f"{pos[i]}: {random.choice(cards)}\n"
     
-    await query.edit_message_text(result)
+    if not u["premium"]:
+        u["attempts"] += 1
+        text += f"\nОсталось: {FREE_ATTEMPTS - u['attempts']} из {FREE_ATTEMPTS}"
+    else:
+        text += "\n♾️ Премиум"
     
-    if not user["premium"]:
-        user["attempts"] += 1
+    await q.edit_message_text(text)
 
-async def buy_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.message.reply_invoice(
-        title="Премиум-подписка на месяц",
-        description="Неограниченные расклады на 30 дней",
-        payload="premium_month",
-        currency="XTR",
-        prices=[{"label": "Подписка", "amount": PREMIUM_PRICE_STARS}]
-    )
+async def buy(update, context):
+    q = update.callback_query
+    await q.answer()
+    await q.message.reply_invoice(title="Премиум", description="Безлимит на месяц", payload="premium", currency="XTR", prices=[{"label": "Подписка", "amount": PREMIUM_PRICE_STARS}])
 
-async def pre_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def pre_checkout(update, context):
     await update.pre_checkout_query.answer(ok=True)
 
-async def successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in users:
-        users[user_id] = {"attempts": 0, "premium": False}
-    users[user_id]["premium"] = True
-    users[user_id]["attempts"] = 0
-    await update.message.reply_text("✅ Подписка активирована! Теперь безлимитные расклады.")
+async def pay_ok(update, context):
+    uid = update.effective_user.id
+    users[uid] = {"attempts": 0, "premium": True, "month": datetime.now().strftime("%Y-%m")}
+    await update.message.reply_text("✅ Подписка активна!")
 
-# === НАСТРОЙКА ПРИЛОЖЕНИЯ ===
-
-application = ApplicationBuilder().token(BOT_TOKEN).build()
-
-application.add_handler(CommandHandler("start", start_command))
-application.add_handler(CallbackQueryHandler(card_callback, pattern="^card$"))
-application.add_handler(CallbackQueryHandler(three_callback, pattern="^three$"))
-application.add_handler(CallbackQueryHandler(buy_callback, pattern="^buy$"))
-application.add_handler(PreCheckoutQueryHandler(pre_checkout))
-application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment))
-
-# === ОБРАБОТЧИК ДЛЯ VERCEL ===
+app = Application.builder().token(BOT_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CallbackQueryHandler(card, pattern="^card$"))
+app.add_handler(CallbackQueryHandler(three, pattern="^three$"))
+app.add_handler(CallbackQueryHandler(buy, pattern="^buy$"))
+app.add_handler(PreCheckoutQueryHandler(pre_checkout))
+app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, pay_ok))
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"Bot is alive")
-    
     def do_POST(self):
         length = int(self.headers.get('Content-Length', 0))
         data = self.rfile.read(length)
-        
         try:
-            update_dict = json.loads(data.decode('utf-8'))
-            update = Update.de_json(update_dict, application.bot)
-            application.update_queue.put_nowait(update)
+            app.update_queue.put_nowait(Update.de_json(json.loads(data), app.bot))
         except Exception as e:
-            logging.error(f"Error: {e}")
-            self.send_response(500)
-            self.end_headers()
-            return
-        
+            logging.error(f"POST error: {e}")
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"ok")
