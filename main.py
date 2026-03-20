@@ -117,9 +117,19 @@ def get_card():
 
 def send_photo(chat_id, image_name, caption, description):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
-    image_url = f"https://raw.githubusercontent.com/mishochek2k11-dot/Taro_Bot/main/images/{image_name}"
-    full_text = f"🔮 **{caption}**\n\n{description}"
-    requests.post(url, json={"chat_id": chat_id, "photo": image_url, "caption": full_text, "parse_mode": "Markdown"})
+    try:
+        # Пытаемся отправить как файл из папки images
+        with open(f"images/{image_name}", "rb") as img:
+            files = {"photo": img}
+            full_text = f"🔮 **{caption}**\n\n{description}"
+            data = {"chat_id": chat_id, "caption": full_text, "parse_mode": "Markdown"}
+            response = requests.post(url, data=data, files=files)
+            if response.status_code != 200:
+                print(f"Photo send error: {response.text}")
+    except Exception as e:
+        print(f"Photo error: {e}")
+        # Запасной вариант: отправить только текст
+        send_message(chat_id, f"🔮 **{caption}**\n\n{description}\n\n(картинка не загрузилась)")
 
 def send_message(chat_id, text, keyboard=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
