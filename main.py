@@ -1,22 +1,9 @@
 from http.server import BaseHTTPRequestHandler
 import json
-import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-from config import BOT_TOKEN
+import requests
 
-logging.basicConfig(level=logging.INFO)
+BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZlY963j5Oyw"
 
-# Самый простой обработчик
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ Бот работает!")
-    logging.info("start command received")
-
-# Создаём приложение
-app = Application.builder().token(BOT_TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-
-# Vercel handler
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -26,12 +13,23 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get('Content-Length', 0))
         data = self.rfile.read(length)
+        
         try:
-            update = Update.de_json(json.loads(data), app.bot)
-            app.update_queue.put_nowait(update)
-            logging.info("POST received and queued")
-        except Exception as e:
-            logging.error(f"POST error: {e}")
+            update = json.loads(data)
+            if "message" in update and "text" in update["message"]:
+                chat_id = update["message"]["chat"]["id"]
+                text = update["message"]["text"]
+                
+                if text == "/start":
+                    reply = "✅ Бот работает!"
+                else:
+                    reply = f"Ты написал: {text}"
+                
+                url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                requests.post(url, json={"chat_id": chat_id, "text": reply})
+        except:
+            pass
+        
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"ok")
