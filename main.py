@@ -25,7 +25,7 @@ def save_users(data):
     except:
         pass
 
-# === ВСЕ 78 КАРТ ===
+# === ВСЕ 78 КАРТ (полный список) ===
 CARDS = [
     {"name": "Шут", "img": "00-TheFool.png", "description": "Тебя ждёт новое начало. Не бойся рискнуть — удача на твоей стороне."},
     {"name": "Маг", "img": "01-TheMagician.png", "description": "У тебя есть все ресурсы для достижения цели. Действуй!"},
@@ -49,6 +49,7 @@ CARDS = [
     {"name": "Солнце", "img": "19-TheSun.png", "description": "Радость, успех, тепло. Наслаждайся моментом."},
     {"name": "Суд", "img": "20-Judgement.png", "description": "Пришло время подвести итоги. Ты готов к новому этапу."},
     {"name": "Мир", "img": "21-TheWorld.png", "description": "Цикл завершён. Ты достигнешь цели и обретёшь гармонию."},
+    # Жезлы
     {"name": "Туз Жезлов", "img": "Wands-01-Ace.png", "description": "Новая энергия врывается в твою жизнь. Действуй!"},
     {"name": "Двойка Жезлов", "img": "Wands-02-Two.png", "description": "Планирование и выбор. Взвесь варианты."},
     {"name": "Тройка Жезлов", "img": "Wands-03-Three.png", "description": "Прогресс и расширение. Твои усилия приносят плоды."},
@@ -63,6 +64,7 @@ CARDS = [
     {"name": "Рыцарь Жезлов", "img": "Wands-12-Knight.png", "description": "Страсть и импульс. Будь осторожен."},
     {"name": "Королева Жезлов", "img": "Wands-13-Queen.png", "description": "Уверенность и независимость. Будь лидером."},
     {"name": "Король Жезлов", "img": "Wands-14-King.png", "description": "Видение и лидерство. Действуй масштабно."},
+    # Кубки
     {"name": "Туз Кубков", "img": "Cups-01-Ace.png", "description": "Новое чувство или любовь. Открой сердце."},
     {"name": "Двойка Кубков", "img": "Cups-02-Two.png", "description": "Союз и партнёрство. Отношения будут гармоничными."},
     {"name": "Тройка Кубков", "img": "Cups-03-Three.png", "description": "Дружба и праздник. Раздели счастье с близкими."},
@@ -77,6 +79,7 @@ CARDS = [
     {"name": "Рыцарь Кубков", "img": "Cups-12-Knight.png", "description": "Романтический порыв. Тебя ждёт приглашение."},
     {"name": "Королева Кубков", "img": "Cups-13-Queen.png", "description": "Сострадание и мудрость. Слушай своё сердце."},
     {"name": "Король Кубков", "img": "Cups-14-King.png", "description": "Эмоциональная зрелость. Ты способен помогать другим."},
+    # Мечи
     {"name": "Туз Мечей", "img": "Swords-01-Ace.png", "description": "Ясность и прорыв. Правда выйдет наружу."},
     {"name": "Двойка Мечей", "img": "Swords-02-Two.png", "description": "Тупик и нежелание выбирать. Пора принять решение."},
     {"name": "Тройка Мечей", "img": "Swords-03-Three.png", "description": "Боль и разочарование. Дай себе время исцелиться."},
@@ -91,6 +94,7 @@ CARDS = [
     {"name": "Рыцарь Мечей", "img": "Swords-12-Knight.png", "description": "Скорость и решительность. Действуй быстро."},
     {"name": "Королева Мечей", "img": "Swords-13-Queen.png", "description": "Честность и независимость. Защищай свои границы."},
     {"name": "Король Мечей", "img": "Swords-14-King.png", "description": "Интеллект и авторитет. Принимай решения холодным умом."},
+    # Пентакли
     {"name": "Туз Пентаклей", "img": "Pentacles-01-Ace.png", "description": "Новая возможность, ресурс. Деньги или работа придут."},
     {"name": "Двойка Пентаклей", "img": "Pentacles-02-Two.png", "description": "Баланс между делами. Учись распределять энергию."},
     {"name": "Тройка Пентаклей", "img": "Pentacles-03-Three.png", "description": "Команда и мастерство. Работа в сотрудничестве принесёт плоды."},
@@ -111,24 +115,31 @@ def get_card():
     return random.choice(CARDS)
 
 def send_photo(chat_id, image_name, caption, description):
+    """Отправляет картинку и текст одним сообщением"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
     image_url = f"https://raw.githubusercontent.com/mishochek2k11-dot/Taro_Bot/main/images/{image_name}"
     full_text = f"🔮 **{caption}**\n\n{description}"
-    requests.post(url, json={"chat_id": chat_id, "photo": image_url, "caption": full_text, "parse_mode": "Markdown"})
+    # Отправляем одним запросом
+    requests.post(url, json={
+        "chat_id": chat_id,
+        "photo": image_url,
+        "caption": full_text,
+        "parse_mode": "Markdown"
+    }, timeout=10)
 
 def send_message(chat_id, text, keyboard=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     data = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
     if keyboard:
         data["reply_markup"] = json.dumps({"inline_keyboard": keyboard})
-    requests.post(url, json=data)
+    requests.post(url, json=data, timeout=10)
 
 def edit_message(chat_id, message_id, text, keyboard=None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
     data = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": "Markdown"}
     if keyboard:
         data["reply_markup"] = json.dumps({"inline_keyboard": keyboard})
-    requests.post(url, json=data)
+    requests.post(url, json=data, timeout=10)
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -244,7 +255,7 @@ class handler(BaseHTTPRequestHandler):
                         "prices": [{"label": "5 попыток", "amount": 20}],
                         "start_parameter": "buy_5"
                     }
-                    requests.post(invoice_url, json=invoice_data)
+                    requests.post(invoice_url, json=invoice_data, timeout=10)
                 
                 elif data_cb == "buy_10":
                     invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
@@ -258,7 +269,7 @@ class handler(BaseHTTPRequestHandler):
                         "prices": [{"label": "10 попыток", "amount": 45}],
                         "start_parameter": "buy_10"
                     }
-                    requests.post(invoice_url, json=invoice_data)
+                    requests.post(invoice_url, json=invoice_data, timeout=10)
                 
                 elif data_cb == "buy_premium":
                     invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
@@ -272,7 +283,7 @@ class handler(BaseHTTPRequestHandler):
                         "prices": [{"label": "Премиум", "amount": 75}],
                         "start_parameter": "premium"
                     }
-                    requests.post(invoice_url, json=invoice_data)
+                    requests.post(invoice_url, json=invoice_data, timeout=10)
                 
                 elif data_cb == "back":
                     keyboard = [
@@ -286,7 +297,7 @@ class handler(BaseHTTPRequestHandler):
                 
                 elif data_cb in ["life", "love", "work"]:
                     if not can_use():
-                        edit_message(chat_id, message_id, f"❌ Лимит исчерпан. Зайди в магазин /shop", [[{"text": "🛒 Магазин", "callback_data": "shop"}]])
+                        edit_message(chat_id, message_id, f"❌ Лимит исчерпан. Зайди в магазин", [[{"text": "🛒 Магазин", "callback_data": "shop"}]])
                         save_users(users)
                         return
                     
@@ -298,21 +309,23 @@ class handler(BaseHTTPRequestHandler):
                     else:
                         title = "Расклад на работу"
                     
+                    # Отправляем одним сообщением (картинка + текст)
                     send_photo(chat_id, card["img"], title, card["description"])
                     use_attempt()
                     
                     if not u["premium"]:
                         remaining = FREE_ATTEMPTS - u["attempts"] + u["extra"]
+                        # Отправляем остаток отдельно, чтобы не смешивать с картинкой
                         send_message(chat_id, f"Осталось раскладов: {remaining}")
                 
                 save_users(users)
                 answer_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
-                requests.post(answer_url, json={"callback_query_id": query["id"]})
+                requests.post(answer_url, json={"callback_query_id": query["id"]}, timeout=5)
             
             elif "pre_checkout_query" in update:
                 query = update["pre_checkout_query"]
                 answer_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerPreCheckoutQuery"
-                requests.post(answer_url, json={"pre_checkout_query_id": query["id"], "ok": True})
+                requests.post(answer_url, json={"pre_checkout_query_id": query["id"], "ok": True}, timeout=5)
             
             elif "message" in update and "successful_payment" in update["message"]:
                 user_id = str(update["message"]["from"]["id"])
