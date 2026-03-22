@@ -5,7 +5,7 @@ import random
 from datetime import datetime, timedelta
 import os
 
-BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZlY963j5Oyw" 
+BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZlY963j5Oyw"  
 FREE_ATTEMPTS = 3
 ADMIN_ID = "6180185234"  
 
@@ -143,6 +143,41 @@ class handler(BaseHTTPRequestHandler):
                 user_id = str(update["message"]["from"]["id"])
                 
                 if is_admin(user_id):
+                    if text == "/start":
+                        keyboard = [
+                            [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
+                            [{"text": "❤️ Расклад на отношения", "callback_data": "love"}],
+                            [{"text": "💼 Расклад на работу", "callback_data": "work"}],
+                            [{"text": "🛒 Магазин", "callback_data": "shop"}],
+                            [{"text": "📊 Статус", "callback_data": "status"}]
+                        ]
+                        send_message(chat_id, "✨ Привет, создатель! Режим админа — безлимитные расклады.", keyboard)
+                    elif text == "/buy":
+                        keyboard = [
+                            [{"text": "📦 5 попыток — 20 ⭐️", "callback_data": "buy_5"}],
+                            [{"text": "📦 10 попыток — 45 ⭐️", "callback_data": "buy_10"}],
+                            [{"text": "🌟 Премиум на месяц — 75 ⭐️", "callback_data": "buy_premium"}],
+                            [{"text": "🔙 Назад", "callback_data": "back"}]
+                        ]
+                        send_message(chat_id, "🛒 **Магазин**\n\nВыбери вариант:", keyboard)
+                    elif text == "/status":
+                        send_message(chat_id, "📊 **Статус админа**\n\n🌟 Безлимитные расклады")
+                    elif text == "/stats":
+                        send_message(chat_id, "📈 **Статистика админа**\n\nСоздатель бота, безлимит.")
+                    elif text == "/start":
+                        keyboard = [
+                            [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
+                            [{"text": "❤️ Расклад на отношения", "callback_data": "love"}],
+                            [{"text": "💼 Расклад на работу", "callback_data": "work"}],
+                            [{"text": "🛒 Магазин", "callback_data": "shop"}],
+                            [{"text": "📊 Статус", "callback_data": "status"}]
+                        ]
+                        send_message(chat_id, "✨ Привет! Выбери тему расклада:", keyboard)
+                    else:
+                        send_message(chat_id, "❌ Неизвестная команда. Используй /start")
+                    return
+                
+                if text == "/start":
                     keyboard = [
                         [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
                         [{"text": "❤️ Расклад на отношения", "callback_data": "love"}],
@@ -150,107 +185,64 @@ class handler(BaseHTTPRequestHandler):
                         [{"text": "🛒 Магазин", "callback_data": "shop"}],
                         [{"text": "📊 Статус", "callback_data": "status"}]
                     ]
-                    send_message(chat_id, "✨ Привет, создатель! Режим админа — безлимитные расклады.", keyboard)
-                    return
+                    send_message(chat_id, "✨ Привет! Выбери тему расклада:", keyboard)
                 
-                if user_id not in users:
+                elif text == "/buy":
+                    keyboard = [
+                        [{"text": "📦 5 попыток — 20 ⭐️", "callback_data": "buy_5"}],
+                        [{"text": "📦 10 попыток — 45 ⭐️", "callback_data": "buy_10"}],
+                        [{"text": "🌟 Премиум на месяц — 75 ⭐️", "callback_data": "buy_premium"}],
+                        [{"text": "🔙 Назад", "callback_data": "back"}]
+                    ]
+                    send_message(chat_id, "🛒 **Магазин**\n\nВыбери вариант:", keyboard)
+                
+                elif text == "/status":
+                    if user_id not in users:
+                        now = datetime.now()
+                        users[user_id] = {
+                            "attempts": 0,
+                            "extra": 0,
+                            "premium": False,
+                            "premium_until": None,
+                            "month": now.strftime("%Y-%m")
+                        }
+                    u = users[user_id]
                     now = datetime.now()
-                    users[user_id] = {
-                        "attempts": 0,
-                        "extra": 0,
-                        "premium": False,
-                        "premium_until": None,
-                        "month": now.strftime("%Y-%m")
-                    }
+                    current_month = now.strftime("%Y-%m")
+                    
+                    if u.get("premium") and u.get("premium_until"):
+                        if now > datetime.fromisoformat(u["premium_until"]):
+                            u["premium"] = False
+                            u["premium_until"] = None
+                    
+                    if u["month"] != current_month and not u.get("premium"):
+                        u["attempts"] = 0
+                        u["month"] = current_month
+                    
+                    if u.get("premium"):
+                        until = u["premium_until"].split("T")[0] if u.get("premium_until") else "неизвестно"
+                        text_status = f"🌟 Премиум до {until}\n♾️ Безлимит"
+                    else:
+                        remaining = FREE_ATTEMPTS - u["attempts"] + u["extra"]
+                        text_status = f"🆓 Бесплатных: {FREE_ATTEMPTS - u['attempts']} из {FREE_ATTEMPTS}\n📦 Куплено: {u['extra']}\n📊 Доступно: {remaining}"
+                    send_message(chat_id, f"📊 **Статус**\n\n{text_status}")
                 
-                u = users[user_id]
-                now = datetime.now()
-                current_month = now.strftime("%Y-%m")
+                elif text == "/stats":
+                    if user_id not in users:
+                        now = datetime.now()
+                        users[user_id] = {
+                            "attempts": 0,
+                            "extra": 0,
+                            "premium": False,
+                            "premium_until": None,
+                            "month": now.strftime("%Y-%m"),
+                            "total_readings": 0
+                        }
+                    u = users[user_id]
+                    send_message(chat_id, f"📈 **Ваша статистика**\n\nВсего раскладов сделано: {u.get('total_readings', 0)}\nПопыток осталось: {FREE_ATTEMPTS - u['attempts'] + u['extra']}")
                 
-                # Проверка премиума
-                if u.get("premium") and u.get("premium_until"):
-                    if now > datetime.fromisoformat(u["premium_until"]):
-                        u["premium"] = False
-                        u["premium_until"] = None
-                
-                # Сброс счётчика в начале месяца
-                if u["month"] != current_month and not u.get("premium"):
-                    u["attempts"] = 0
-                    u["month"] = current_month
-                if text == "/start":
-    keyboard = [
-        [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
-        [{"text": "❤️ Расклад на отношения", "callback_data": "love"}],
-        [{"text": "💼 Расклад на работу", "callback_data": "work"}],
-        [{"text": "🛒 Магазин", "callback_data": "shop"}],
-        [{"text": "📊 Статус", "callback_data": "status"}]
-    ]
-    send_message(chat_id, "✨ Привет! Выбери тему расклада:", keyboard)
-
-elif text == "/buy":
-    keyboard = [
-        [{"text": "📦 5 попыток — 20 ⭐️", "callback_data": "buy_5"}],
-        [{"text": "📦 10 попыток — 45 ⭐️", "callback_data": "buy_10"}],
-        [{"text": "🌟 Премиум на месяц — 75 ⭐️", "callback_data": "buy_premium"}],
-        [{"text": "🔙 Назад", "callback_data": "back"}]
-    ]
-    send_message(chat_id, "🛒 **Магазин**\n\nВыбери вариант:", keyboard)
-
-elif text == "/status":
-    if is_admin(user_id):
-        send_message(chat_id, "📊 **Статус админа**\n\n🌟 Безлимитные расклады")
-        return
-    
-    if user_id not in users:
-        now = datetime.now()
-        users[user_id] = {
-            "attempts": 0,
-            "extra": 0,
-            "premium": False,
-            "premium_until": None,
-            "month": now.strftime("%Y-%m")
-        }
-    u = users[user_id]
-    now = datetime.now()
-    current_month = now.strftime("%Y-%m")
-    
-    if u.get("premium") and u.get("premium_until"):
-        if now > datetime.fromisoformat(u["premium_until"]):
-            u["premium"] = False
-            u["premium_until"] = None
-    
-    if u["month"] != current_month and not u.get("premium"):
-        u["attempts"] = 0
-        u["month"] = current_month
-    
-    if u.get("premium"):
-        until = u["premium_until"].split("T")[0] if u.get("premium_until") else "неизвестно"
-        text = f"🌟 Премиум до {until}\n♾️ Безлимит"
-    else:
-        remaining = FREE_ATTEMPTS - u["attempts"] + u["extra"]
-        text = f"🆓 Бесплатных: {FREE_ATTEMPTS - u['attempts']} из {FREE_ATTEMPTS}\n📦 Куплено: {u['extra']}\n📊 Доступно: {remaining}"
-    send_message(chat_id, f"📊 **Статус**\n\n{text}")
-
-elif text == "/stats":
-    if is_admin(user_id):
-        send_message(chat_id, "📈 **Статистика админа**\n\nСоздатель бота, безлимит.")
-        return
-    
-    if user_id not in users:
-        now = datetime.now()
-        users[user_id] = {
-            "attempts": 0,
-            "extra": 0,
-            "premium": False,
-            "premium_until": None,
-            "month": now.strftime("%Y-%m"),
-            "total_readings": 0
-        }
-    u = users[user_id]
-    send_message(chat_id, f"📈 **Ваша статистика**\n\nВсего раскладов сделано: {u.get('total_readings', 0)}\nПопыток осталось: {FREE_ATTEMPTS - u['attempts'] + u['extra']}")
-
-else:
-    send_message(chat_id, "❌ Неизвестная команда. Используй /start")
+                else:
+                    send_message(chat_id, "❌ Неизвестная команда. Используй /start")
             
             elif "callback_query" in update:
                 query = update["callback_query"]
@@ -288,7 +280,8 @@ else:
                         "extra": 0,
                         "premium": False,
                         "premium_until": None,
-                        "month": now.strftime("%Y-%m")
+                        "month": now.strftime("%Y-%m"),
+                        "total_readings": 0
                     }
                 
                 u = users[user_id]
@@ -336,6 +329,7 @@ else:
                     edit_message(chat_id, message_id, "🛒 **Магазин**\n\nВыбери вариант:", keyboard)
                 
                 elif data_cb == "buy_5":
+                    send_message(chat_id, "🔄 Оформление заказа на 5 попыток...")
                     invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
                     invoice_data = {
                         "chat_id": chat_id,
@@ -350,6 +344,7 @@ else:
                     requests.post(invoice_url, json=invoice_data, timeout=10)
                 
                 elif data_cb == "buy_10":
+                    send_message(chat_id, "🔄 Оформление заказа на 10 попыток...")
                     invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
                     invoice_data = {
                         "chat_id": chat_id,
@@ -364,6 +359,7 @@ else:
                     requests.post(invoice_url, json=invoice_data, timeout=10)
                 
                 elif data_cb == "buy_premium":
+                    send_message(chat_id, "🔄 Оформление премиум-подписки...")
                     invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
                     invoice_data = {
                         "chat_id": chat_id,
@@ -402,6 +398,7 @@ else:
                     
                     send_photo(chat_id, card["img"], title, card["description"])
                     use_attempt()
+                    u["total_readings"] = u.get("total_readings", 0) + 1
                     
                     if not u.get("premium"):
                         remaining = FREE_ATTEMPTS - u["attempts"] + u["extra"]
@@ -426,20 +423,23 @@ else:
                         "extra": 0,
                         "premium": False,
                         "premium_until": None,
-                        "month": now.strftime("%Y-%m")
+                        "month": now.strftime("%Y-%m"),
+                        "total_readings": 0
                     }
                 u = users[user_id]
                 
                 if payload == "extra_5":
                     u["extra"] += 5
-                    send_message(update["message"]["chat"]["id"], "✅ +5 попыток")
+                    send_message(update["message"]["chat"]["id"], "✅ +5 дополнительных попыток!")
                 elif payload == "extra_10":
                     u["extra"] += 10
-                    send_message(update["message"]["chat"]["id"], "✅ +10 попыток")
+                    send_message(update["message"]["chat"]["id"], "✅ +10 дополнительных попыток!")
                 elif payload == "premium_month":
                     u["premium"] = True
                     u["premium_until"] = (datetime.now() + timedelta(days=30)).isoformat()
-                    send_message(update["message"]["chat"]["id"], "✅ Премиум на месяц!")
+                    send_message(update["message"]["chat"]["id"], "✅ Премиум-подписка активирована на 30 дней!")
+                
+                send_message(update["message"]["chat"]["id"], "🛍️ Спасибо за покупку! Используй /status для проверки.")
         
         except Exception as e:
             print(f"Error: {e}")
