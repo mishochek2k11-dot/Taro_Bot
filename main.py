@@ -177,18 +177,80 @@ class handler(BaseHTTPRequestHandler):
                 if u["month"] != current_month and not u.get("premium"):
                     u["attempts"] = 0
                     u["month"] = current_month
-                
                 if text == "/start":
-                    keyboard = [
-                        [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
-                        [{"text": "❤️ Расклад на отношения", "callback_data": "love"}],
-                        [{"text": "💼 Расклад на работу", "callback_data": "work"}],
-                        [{"text": "🛒 Магазин", "callback_data": "shop"}],
-                        [{"text": "📊 Статус", "callback_data": "status"}]
-                    ]
-                    send_message(chat_id, "✨ Привет! Выбери тему расклада:", keyboard)
-                else:
-                    send_message(chat_id, "❌ Неизвестная команда. Используй /start")
+    keyboard = [
+        [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
+        [{"text": "❤️ Расклад на отношения", "callback_data": "love"}],
+        [{"text": "💼 Расклад на работу", "callback_data": "work"}],
+        [{"text": "🛒 Магазин", "callback_data": "shop"}],
+        [{"text": "📊 Статус", "callback_data": "status"}]
+    ]
+    send_message(chat_id, "✨ Привет! Выбери тему расклада:", keyboard)
+
+elif text == "/buy":
+    keyboard = [
+        [{"text": "📦 5 попыток — 20 ⭐️", "callback_data": "buy_5"}],
+        [{"text": "📦 10 попыток — 45 ⭐️", "callback_data": "buy_10"}],
+        [{"text": "🌟 Премиум на месяц — 75 ⭐️", "callback_data": "buy_premium"}],
+        [{"text": "🔙 Назад", "callback_data": "back"}]
+    ]
+    send_message(chat_id, "🛒 **Магазин**\n\nВыбери вариант:", keyboard)
+
+elif text == "/status":
+    if is_admin(user_id):
+        send_message(chat_id, "📊 **Статус админа**\n\n🌟 Безлимитные расклады")
+        return
+    
+    if user_id not in users:
+        now = datetime.now()
+        users[user_id] = {
+            "attempts": 0,
+            "extra": 0,
+            "premium": False,
+            "premium_until": None,
+            "month": now.strftime("%Y-%m")
+        }
+    u = users[user_id]
+    now = datetime.now()
+    current_month = now.strftime("%Y-%m")
+    
+    if u.get("premium") and u.get("premium_until"):
+        if now > datetime.fromisoformat(u["premium_until"]):
+            u["premium"] = False
+            u["premium_until"] = None
+    
+    if u["month"] != current_month and not u.get("premium"):
+        u["attempts"] = 0
+        u["month"] = current_month
+    
+    if u.get("premium"):
+        until = u["premium_until"].split("T")[0] if u.get("premium_until") else "неизвестно"
+        text = f"🌟 Премиум до {until}\n♾️ Безлимит"
+    else:
+        remaining = FREE_ATTEMPTS - u["attempts"] + u["extra"]
+        text = f"🆓 Бесплатных: {FREE_ATTEMPTS - u['attempts']} из {FREE_ATTEMPTS}\n📦 Куплено: {u['extra']}\n📊 Доступно: {remaining}"
+    send_message(chat_id, f"📊 **Статус**\n\n{text}")
+
+elif text == "/stats":
+    if is_admin(user_id):
+        send_message(chat_id, "📈 **Статистика админа**\n\nСоздатель бота, безлимит.")
+        return
+    
+    if user_id not in users:
+        now = datetime.now()
+        users[user_id] = {
+            "attempts": 0,
+            "extra": 0,
+            "premium": False,
+            "premium_until": None,
+            "month": now.strftime("%Y-%m"),
+            "total_readings": 0
+        }
+    u = users[user_id]
+    send_message(chat_id, f"📈 **Ваша статистика**\n\nВсего раскладов сделано: {u.get('total_readings', 0)}\nПопыток осталось: {FREE_ATTEMPTS - u['attempts'] + u['extra']}")
+
+else:
+    send_message(chat_id, "❌ Неизвестная команда. Используй /start")
             
             elif "callback_query" in update:
                 query = update["callback_query"]
