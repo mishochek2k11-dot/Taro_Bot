@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import os
 from supabase import create_client, Client
 
+# === НАСТРОЙКИ ===
 BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZlY963j5Oyw"  
 FREE_ATTEMPTS = 3
 ADMIN_ID = "6180185234"  
@@ -206,6 +207,10 @@ class handler(BaseHTTPRequestHandler):
                     return
                 
                 if text == "/start":
+                    user = get_user(user_id)
+                    if not user:
+                        user = create_user(user_id)
+                    
                     keyboard = [
                         [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
                         [{"text": "❤️ Расклад на отношения", "callback_data": "love"}],
@@ -239,6 +244,7 @@ class handler(BaseHTTPRequestHandler):
                     user = get_user(user_id)
                     if not user:
                         user = create_user(user_id)
+                    
                     if not user:
                         send_message(chat_id, "❌ Ошибка базы данных")
                         return
@@ -270,9 +276,11 @@ class handler(BaseHTTPRequestHandler):
                     user = get_user(user_id)
                     if not user:
                         user = create_user(user_id)
+                    
                     if not user:
                         send_message(chat_id, "❌ Ошибка базы данных")
                         return
+                    
                     send_message(chat_id, f"📈 **Ваша статистика**\n\nВсего раскладов сделано: {user.get('total_readings', 0)}\nПопыток осталось: {FREE_ATTEMPTS - user.get('attempts', 0) + user.get('extra', 0)}")
                 
                 else:
@@ -310,6 +318,7 @@ class handler(BaseHTTPRequestHandler):
                 user = get_user(user_id)
                 if not user:
                     user = create_user(user_id)
+                
                 if not user:
                     edit_message(chat_id, message_id, "❌ Ошибка базы данных")
                     return
@@ -455,22 +464,20 @@ class handler(BaseHTTPRequestHandler):
                 user = get_user(user_id)
                 if not user:
                     user = create_user(user_id)
-                if not user:
-                    send_message(update["message"]["chat"]["id"], "❌ Ошибка базы данных")
-                    return
                 
-                if payload == "extra_5":
-                    update_user(user_id, {"extra": user.get("extra", 0) + 5})
-                    send_message(update["message"]["chat"]["id"], "✅ +5 дополнительных попыток!")
-                elif payload == "extra_10":
-                    update_user(user_id, {"extra": user.get("extra", 0) + 10})
-                    send_message(update["message"]["chat"]["id"], "✅ +10 дополнительных попыток!")
-                elif payload == "premium_month":
-                    premium_until = (datetime.now() + timedelta(days=30)).isoformat()
-                    update_user(user_id, {"premium": True, "premium_until": premium_until})
-                    send_message(update["message"]["chat"]["id"], "✅ Премиум-подписка активирована на 30 дней!")
-                
-                send_message(update["message"]["chat"]["id"], "🛍️ Спасибо за покупку! Используй /status для проверки.")
+                if user:
+                    if payload == "extra_5":
+                        update_user(user_id, {"extra": user.get("extra", 0) + 5})
+                        send_message(update["message"]["chat"]["id"], "✅ +5 дополнительных попыток!")
+                    elif payload == "extra_10":
+                        update_user(user_id, {"extra": user.get("extra", 0) + 10})
+                        send_message(update["message"]["chat"]["id"], "✅ +10 дополнительных попыток!")
+                    elif payload == "premium_month":
+                        premium_until = (datetime.now() + timedelta(days=30)).isoformat()
+                        update_user(user_id, {"premium": True, "premium_until": premium_until})
+                        send_message(update["message"]["chat"]["id"], "✅ Премиум-подписка активирована на 30 дней!")
+                    
+                    send_message(update["message"]["chat"]["id"], "🛍️ Спасибо за покупку! Используй /status для проверки.")
         
         except Exception as e:
             print(f"Error: {e}")
