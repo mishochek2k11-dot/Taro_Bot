@@ -4,15 +4,18 @@ import requests
 import random
 from datetime import datetime, timedelta
 import os
+from supabase import create_client, Client
 
 BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZlY963j5Oyw"  
 FREE_ATTEMPTS = 3
 ADMIN_ID = "6180185234"  
 
-# Хранилище в памяти (сбросится при перезапуске, но для теста пойдёт)
-users = {}
+# Supabase
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# === ВСЕ 78 КАРТ (твои имена файлов) ===
+# === ВСЕ 78 КАРТ ===
 CARDS = [
     {"name": "Шут", "img": "00-TheFool.png", "description": "Тебя ждёт новое начало. Не бойся рискнуть — удача на твоей стороне."},
     {"name": "Маг", "img": "01-TheMagician.png", "description": "У тебя есть все ресурсы для достижения цели. Действуй!"},
@@ -124,6 +127,40 @@ def edit_message(chat_id, message_id, text, keyboard=None):
 def is_admin(user_id):
     return str(user_id) == ADMIN_ID
 
+def get_user(user_id):
+    try:
+        result = supabase.table("users").select("*").eq("user_id", user_id).execute()
+        if result.data:
+            return result.data[0]
+        return None
+    except Exception as e:
+        print(f"Supabase get error: {e}")
+        return None
+
+def create_user(user_id):
+    now = datetime.now()
+    current_month = now.strftime("%Y-%m")
+    try:
+        supabase.table("users").insert({
+            "user_id": user_id,
+            "attempts": 0,
+            "extra": 0,
+            "premium": False,
+            "premium_until": None,
+            "month": current_month,
+            "total_readings": 0
+        }).execute()
+        return {"user_id": user_id, "attempts": 0, "extra": 0, "premium": False, "premium_until": None, "month": current_month, "total_readings": 0}
+    except Exception as e:
+        print(f"Supabase create error: {e}")
+        return None
+
+def update_user(user_id, data):
+    try:
+        supabase.table("users").update(data).eq("user_id", user_id).execute()
+    except Exception as e:
+        print(f"Supabase update error: {e}")
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -164,15 +201,6 @@ class handler(BaseHTTPRequestHandler):
                         send_message(chat_id, "📊 **Статус админа**\n\n🌟 Безлимитные расклады")
                     elif text == "/stats":
                         send_message(chat_id, "📈 **Статистика админа**\n\nСоздатель бота, безлимит.")
-                    elif text == "/start":
-                        keyboard = [
-                            [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
-                            [{"text": "❤️ Расклад на отношения", "callback_data": "love"}],
-                            [{"text": "💼 Расклад на работу", "callback_data": "work"}],
-                            [{"text": "🛒 Магазин", "callback_data": "shop"}],
-                            [{"text": "📊 Статус", "callback_data": "status"}]
-                        ]
-                        send_message(chat_id, "✨ Привет! Выбери тему расклада:", keyboard)
                     else:
                         send_message(chat_id, "❌ Неизвестная команда. Используй /start")
                     return
@@ -185,7 +213,18 @@ class handler(BaseHTTPRequestHandler):
                         [{"text": "🛒 Магазин", "callback_data": "shop"}],
                         [{"text": "📊 Статус", "callback_data": "status"}]
                     ]
-                    send_message(chat_id, "✨ Привет! Выбери тему расклада:", keyboard)
+                    welcome_text = (
+                        "✨ **Добро пожаловать в бота Таро!** ✨\n\n"
+                        "📋 **Доступные команды:**\n"
+                        "/start — показать это сообщение\n"
+                        "/buy — открыть магазин попыток и премиум\n"
+                        "/status — проверить статус подписки и остаток попыток\n"
+                        "/stats — посмотреть статистику (сколько раскладов сделано)\n\n"
+                        "🔥 У тебя 3 бесплатных расклада в месяц.\n"
+                        "🌟 Премиум-подписка даёт безлимит.\n\n"
+                        "👇 **Выбери тему расклада:**"
+                    )
+                    send_message(chat_id, welcome_text, keyboard)
                 
                 elif text == "/buy":
                     keyboard = [
@@ -197,49 +236,44 @@ class handler(BaseHTTPRequestHandler):
                     send_message(chat_id, "🛒 **Магазин**\n\nВыбери вариант:", keyboard)
                 
                 elif text == "/status":
-                    if user_id not in users:
-                        now = datetime.now()
-                        users[user_id] = {
-                            "attempts": 0,
-                            "extra": 0,
-                            "premium": False,
-                            "premium_until": None,
-                            "month": now.strftime("%Y-%m")
-                        }
-                    u = users[user_id]
+                    user = get_user(user_id)
+                    if not user:
+                        user = create_user(user_id)
+                    if not user:
+                        send_message(chat_id, "❌ Ошибка базы данных")
+                        return
+                    
                     now = datetime.now()
                     current_month = now.strftime("%Y-%m")
                     
-                    if u.get("premium") and u.get("premium_until"):
-                        if now > datetime.fromisoformat(u["premium_until"]):
-                            u["premium"] = False
-                            u["premium_until"] = None
+                    if user.get("premium") and user.get("premium_until"):
+                        premium_until = datetime.fromisoformat(user["premium_until"].replace("Z", "+00:00"))
+                        if now > premium_until:
+                            update_user(user_id, {"premium": False, "premium_until": None})
+                            user["premium"] = False
+                            user["premium_until"] = None
                     
-                    if u["month"] != current_month and not u.get("premium"):
-                        u["attempts"] = 0
-                        u["month"] = current_month
+                    if user.get("month") != current_month and not user.get("premium"):
+                        update_user(user_id, {"attempts": 0, "month": current_month})
+                        user["attempts"] = 0
+                        user["month"] = current_month
                     
-                    if u.get("premium"):
-                        until = u["premium_until"].split("T")[0] if u.get("premium_until") else "неизвестно"
+                    if user.get("premium"):
+                        until = user["premium_until"].split("T")[0] if user.get("premium_until") else "неизвестно"
                         text_status = f"🌟 Премиум до {until}\n♾️ Безлимит"
                     else:
-                        remaining = FREE_ATTEMPTS - u["attempts"] + u["extra"]
-                        text_status = f"🆓 Бесплатных: {FREE_ATTEMPTS - u['attempts']} из {FREE_ATTEMPTS}\n📦 Куплено: {u['extra']}\n📊 Доступно: {remaining}"
+                        remaining = FREE_ATTEMPTS - user.get("attempts", 0) + user.get("extra", 0)
+                        text_status = f"🆓 Бесплатных: {FREE_ATTEMPTS - user.get('attempts', 0)} из {FREE_ATTEMPTS}\n📦 Куплено: {user.get('extra', 0)}\n📊 Доступно: {remaining}"
                     send_message(chat_id, f"📊 **Статус**\n\n{text_status}")
                 
                 elif text == "/stats":
-                    if user_id not in users:
-                        now = datetime.now()
-                        users[user_id] = {
-                            "attempts": 0,
-                            "extra": 0,
-                            "premium": False,
-                            "premium_until": None,
-                            "month": now.strftime("%Y-%m"),
-                            "total_readings": 0
-                        }
-                    u = users[user_id]
-                    send_message(chat_id, f"📈 **Ваша статистика**\n\nВсего раскладов сделано: {u.get('total_readings', 0)}\nПопыток осталось: {FREE_ATTEMPTS - u['attempts'] + u['extra']}")
+                    user = get_user(user_id)
+                    if not user:
+                        user = create_user(user_id)
+                    if not user:
+                        send_message(chat_id, "❌ Ошибка базы данных")
+                        return
+                    send_message(chat_id, f"📈 **Ваша статистика**\n\nВсего раскладов сделано: {user.get('total_readings', 0)}\nПопыток осталось: {FREE_ATTEMPTS - user.get('attempts', 0) + user.get('extra', 0)}")
                 
                 else:
                     send_message(chat_id, "❌ Неизвестная команда. Используй /start")
@@ -273,50 +307,52 @@ class handler(BaseHTTPRequestHandler):
                     requests.post(answer_url, json={"callback_query_id": query["id"]}, timeout=5)
                     return
                 
-                if user_id not in users:
-                    now = datetime.now()
-                    users[user_id] = {
-                        "attempts": 0,
-                        "extra": 0,
-                        "premium": False,
-                        "premium_until": None,
-                        "month": now.strftime("%Y-%m"),
-                        "total_readings": 0
-                    }
+                user = get_user(user_id)
+                if not user:
+                    user = create_user(user_id)
+                if not user:
+                    edit_message(chat_id, message_id, "❌ Ошибка базы данных")
+                    return
                 
-                u = users[user_id]
                 now = datetime.now()
                 current_month = now.strftime("%Y-%m")
                 
-                if u.get("premium") and u.get("premium_until"):
-                    if now > datetime.fromisoformat(u["premium_until"]):
-                        u["premium"] = False
-                        u["premium_until"] = None
+                if user.get("premium") and user.get("premium_until"):
+                    premium_until = datetime.fromisoformat(user["premium_until"].replace("Z", "+00:00"))
+                    if now > premium_until:
+                        update_user(user_id, {"premium": False, "premium_until": None})
+                        user["premium"] = False
+                        user["premium_until"] = None
                 
-                if u["month"] != current_month and not u.get("premium"):
-                    u["attempts"] = 0
-                    u["month"] = current_month
+                if user.get("month") != current_month and not user.get("premium"):
+                    update_user(user_id, {"attempts": 0, "month": current_month})
+                    user["attempts"] = 0
+                    user["month"] = current_month
                 
                 def can_use():
-                    if u.get("premium"):
+                    if user.get("premium"):
                         return True
-                    return u["attempts"] < FREE_ATTEMPTS or u["extra"] > 0
+                    return user.get("attempts", 0) < FREE_ATTEMPTS or user.get("extra", 0) > 0
                 
                 def use_attempt():
-                    if u.get("premium"):
+                    if user.get("premium"):
                         return
-                    if u["attempts"] < FREE_ATTEMPTS:
-                        u["attempts"] += 1
-                    elif u["extra"] > 0:
-                        u["extra"] -= 1
+                    attempts = user.get("attempts", 0)
+                    extra = user.get("extra", 0)
+                    if attempts < FREE_ATTEMPTS:
+                        update_user(user_id, {"attempts": attempts + 1})
+                        user["attempts"] = attempts + 1
+                    elif extra > 0:
+                        update_user(user_id, {"extra": extra - 1})
+                        user["extra"] = extra - 1
                 
                 if data_cb == "status":
-                    if u.get("premium"):
-                        until = u["premium_until"].split("T")[0] if u.get("premium_until") else "неизвестно"
+                    if user.get("premium"):
+                        until = user["premium_until"].split("T")[0] if user.get("premium_until") else "неизвестно"
                         text = f"🌟 Премиум до {until}\n♾️ Безлимит"
                     else:
-                        remaining = FREE_ATTEMPTS - u["attempts"] + u["extra"]
-                        text = f"🆓 Бесплатных: {FREE_ATTEMPTS - u['attempts']} из {FREE_ATTEMPTS}\n📦 Куплено: {u['extra']}\n📊 Доступно: {remaining}"
+                        remaining = FREE_ATTEMPTS - user.get("attempts", 0) + user.get("extra", 0)
+                        text = f"🆓 Бесплатных: {FREE_ATTEMPTS - user.get('attempts', 0)} из {FREE_ATTEMPTS}\n📦 Куплено: {user.get('extra', 0)}\n📊 Доступно: {remaining}"
                     edit_message(chat_id, message_id, f"📊 **Статус**\n\n{text}", [[{"text": "🔙 Назад", "callback_data": "back"}]])
                 
                 elif data_cb == "shop":
@@ -398,10 +434,10 @@ class handler(BaseHTTPRequestHandler):
                     
                     send_photo(chat_id, card["img"], title, card["description"])
                     use_attempt()
-                    u["total_readings"] = u.get("total_readings", 0) + 1
+                    update_user(user_id, {"total_readings": user.get("total_readings", 0) + 1})
                     
-                    if not u.get("premium"):
-                        remaining = FREE_ATTEMPTS - u["attempts"] + u["extra"]
+                    if not user.get("premium"):
+                        remaining = FREE_ATTEMPTS - user.get("attempts", 0) + user.get("extra", 0)
                         send_message(chat_id, f"Осталось раскладов: {remaining}")
                 
                 answer_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
@@ -416,27 +452,22 @@ class handler(BaseHTTPRequestHandler):
                 user_id = str(update["message"]["from"]["id"])
                 payload = update["message"]["successful_payment"]["payload"]
                 
-                if user_id not in users:
-                    now = datetime.now()
-                    users[user_id] = {
-                        "attempts": 0,
-                        "extra": 0,
-                        "premium": False,
-                        "premium_until": None,
-                        "month": now.strftime("%Y-%m"),
-                        "total_readings": 0
-                    }
-                u = users[user_id]
+                user = get_user(user_id)
+                if not user:
+                    user = create_user(user_id)
+                if not user:
+                    send_message(update["message"]["chat"]["id"], "❌ Ошибка базы данных")
+                    return
                 
                 if payload == "extra_5":
-                    u["extra"] += 5
+                    update_user(user_id, {"extra": user.get("extra", 0) + 5})
                     send_message(update["message"]["chat"]["id"], "✅ +5 дополнительных попыток!")
                 elif payload == "extra_10":
-                    u["extra"] += 10
+                    update_user(user_id, {"extra": user.get("extra", 0) + 10})
                     send_message(update["message"]["chat"]["id"], "✅ +10 дополнительных попыток!")
                 elif payload == "premium_month":
-                    u["premium"] = True
-                    u["premium_until"] = (datetime.now() + timedelta(days=30)).isoformat()
+                    premium_until = (datetime.now() + timedelta(days=30)).isoformat()
+                    update_user(user_id, {"premium": True, "premium_until": premium_until})
                     send_message(update["message"]["chat"]["id"], "✅ Премиум-подписка активирована на 30 дней!")
                 
                 send_message(update["message"]["chat"]["id"], "🛍️ Спасибо за покупку! Используй /status для проверки.")
