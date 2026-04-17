@@ -4,13 +4,17 @@ import requests
 import random
 from datetime import datetime, timedelta
 import os
+from supabase import create_client, Client
 
-BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZlY963j5Oyw"  
+# === НАСТРОЙКИ ===
+BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZlY963j5Oyw"
 FREE_ATTEMPTS = 3
-ADMIN_ID = "6180185234"  
+ADMIN_ID = "6180185234"
 
-# Хранилище в памяти (временное, пока не настроишь базу)
-users = {}
+# Supabase
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # === ВСЕ 78 КАРТ ===
 CARDS = [
@@ -36,7 +40,6 @@ CARDS = [
     {"name": "Солнце", "img": "19-TheSun.png", "description": "Радость, успех, тепло. Наслаждайся моментом."},
     {"name": "Суд", "img": "20-Judgement.png", "description": "Пришло время подвести итоги. Ты готов к новому этапу."},
     {"name": "Мир", "img": "21-TheWorld.png", "description": "Цикл завершён. Ты достигнешь цели и обретёшь гармонию."},
-    # Жезлы
     {"name": "Туз Жезлов", "img": "Wands01.png", "description": "Новая энергия врывается в твою жизнь. Действуй!"},
     {"name": "Двойка Жезлов", "img": "Wands02.png", "description": "Планирование и выбор. Взвесь варианты."},
     {"name": "Тройка Жезлов", "img": "Wands03.png", "description": "Прогресс и расширение. Твои усилия приносят плоды."},
@@ -51,7 +54,6 @@ CARDS = [
     {"name": "Рыцарь Жезлов", "img": "Wands12.png", "description": "Страсть и импульс. Будь осторожен."},
     {"name": "Королева Жезлов", "img": "Wands13.png", "description": "Уверенность и независимость. Будь лидером."},
     {"name": "Король Жезлов", "img": "Wands14.png", "description": "Видение и лидерство. Действуй масштабно."},
-    # Кубки
     {"name": "Туз Кубков", "img": "Cups01.png", "description": "Новое чувство или любовь. Открой сердце."},
     {"name": "Двойка Кубков", "img": "Cups02.png", "description": "Союз и партнёрство. Отношения будут гармоничными."},
     {"name": "Тройка Кубков", "img": "Cups03.png", "description": "Дружба и праздник. Раздели счастье с близкими."},
@@ -66,7 +68,6 @@ CARDS = [
     {"name": "Рыцарь Кубков", "img": "Cups12.png", "description": "Романтический порыв. Тебя ждёт приглашение."},
     {"name": "Королева Кубков", "img": "Cups13.png", "description": "Сострадание и мудрость. Слушай своё сердце."},
     {"name": "Король Кубков", "img": "Cups14.png", "description": "Эмоциональная зрелость. Ты способен помогать другим."},
-    # Мечи
     {"name": "Туз Мечей", "img": "Swords01.png", "description": "Ясность и прорыв. Правда выйдет наружу."},
     {"name": "Двойка Мечей", "img": "Swords02.png", "description": "Тупик и нежелание выбирать. Пора принять решение."},
     {"name": "Тройка Мечей", "img": "Swords03.png", "description": "Боль и разочарование. Дай себе время исцелиться."},
@@ -81,7 +82,6 @@ CARDS = [
     {"name": "Рыцарь Мечей", "img": "Swords12.png", "description": "Скорость и решительность. Действуй быстро."},
     {"name": "Королева Мечей", "img": "Swords13.png", "description": "Честность и независимость. Защищай свои границы."},
     {"name": "Король Мечей", "img": "Swords14.png", "description": "Интеллект и авторитет. Принимай решения холодным умом."},
-    # Пентакли
     {"name": "Туз Пентаклей", "img": "Pentacles01.png", "description": "Новая возможность, ресурс. Деньги или работа придут."},
     {"name": "Двойка Пентаклей", "img": "Pentacles02.png", "description": "Баланс между делами. Учись распределять энергию."},
     {"name": "Тройка Пентаклей", "img": "Pentacles03.png", "description": "Команда и мастерство. Работа в сотрудничестве принесёт плоды."},
@@ -124,24 +124,56 @@ def edit_message(chat_id, message_id, text, keyboard=None):
 def is_admin(user_id):
     return str(user_id) == ADMIN_ID
 
+def get_user(user_id):
+    try:
+        result = supabase.table("users").select("*").eq("user_id", user_id).execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        print(f"Supabase get error: {e}")
+        return None
+
+def create_user(user_id):
+    now = datetime.now()
+    current_month = now.strftime("%Y-%m")
+    try:
+        supabase.table("users").insert({
+            "user_id": user_id,
+            "attempts": 0,
+            "extra": 0,
+            "premium": False,
+            "premium_until": None,
+            "month": current_month,
+            "total_readings": 0
+        }).execute()
+        return {"user_id": user_id, "attempts": 0, "extra": 0, "premium": False, "premium_until": None, "month": current_month, "total_readings": 0}
+    except Exception as e:
+        print(f"Supabase create error: {e}")
+        return None
+
+def update_user(user_id, data):
+    try:
+        supabase.table("users").update(data).eq("user_id", user_id).execute()
+    except Exception as e:
+        print(f"Supabase update error: {e}")
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"Bot is alive")
-    
+
     def do_POST(self):
         length = int(self.headers.get('Content-Length', 0))
         data = self.rfile.read(length)
-        
+
         try:
             update = json.loads(data)
-            
+
             if "message" in update:
                 chat_id = update["message"]["chat"]["id"]
                 text = update["message"].get("text", "")
                 user_id = str(update["message"]["from"]["id"])
-                
+
                 if is_admin(user_id):
                     if text == "/start":
                         keyboard = [
@@ -167,34 +199,30 @@ class handler(BaseHTTPRequestHandler):
                     else:
                         send_message(chat_id, "❌ Неизвестная команда. Используй /start")
                     return
-                
+
                 # Обычный пользователь
-                if user_id not in users:
-                    now = datetime.now()
-                    users[user_id] = {
-                        "attempts": 0,
-                        "extra": 0,
-                        "premium": False,
-                        "premium_until": None,
-                        "month": now.strftime("%Y-%m"),
-                        "total_readings": 0
-                    }
-                
-                u = users[user_id]
+                user = get_user(user_id)
+                if not user:
+                    user = create_user(user_id)
+
+                if not user:
+                    send_message(chat_id, "❌ Ошибка базы данных. Попробуй позже.")
+                    return
+
                 now = datetime.now()
                 current_month = now.strftime("%Y-%m")
-                
-                # Проверка премиума
-                if u.get("premium") and u.get("premium_until"):
-                    if now > datetime.fromisoformat(u["premium_until"]):
-                        u["premium"] = False
-                        u["premium_until"] = None
-                
-                # Сброс счётчика в начале месяца
-                if u.get("month") != current_month and not u.get("premium"):
-                    u["attempts"] = 0
-                    u["month"] = current_month
-                
+
+                if user.get("premium") and user.get("premium_until"):
+                    if now > datetime.fromisoformat(user["premium_until"].replace("Z", "+00:00")):
+                        update_user(user_id, {"premium": False, "premium_until": None})
+                        user["premium"] = False
+                        user["premium_until"] = None
+
+                if user.get("month") != current_month and not user.get("premium"):
+                    update_user(user_id, {"attempts": 0, "month": current_month})
+                    user["attempts"] = 0
+                    user["month"] = current_month
+
                 if text == "/start":
                     keyboard = [
                         [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
@@ -215,7 +243,7 @@ class handler(BaseHTTPRequestHandler):
                         "👇 **Выбери тему расклада:**"
                     )
                     send_message(chat_id, welcome_text, keyboard)
-                
+
                 elif text == "/buy":
                     keyboard = [
                         [{"text": "📦 5 попыток — 20 ⭐️", "callback_data": "buy_5"}],
@@ -224,29 +252,29 @@ class handler(BaseHTTPRequestHandler):
                         [{"text": "🔙 Назад", "callback_data": "back"}]
                     ]
                     send_message(chat_id, "🛒 **Магазин**\n\nВыбери вариант:", keyboard)
-                
+
                 elif text == "/status":
-                    if u.get("premium"):
-                        until = u["premium_until"].split("T")[0] if u.get("premium_until") else "неизвестно"
+                    if user.get("premium"):
+                        until = user["premium_until"].split("T")[0] if user.get("premium_until") else "неизвестно"
                         text_status = f"🌟 Премиум до {until}\n♾️ Безлимит"
                     else:
-                        remaining = FREE_ATTEMPTS - u.get("attempts", 0) + u.get("extra", 0)
-                        text_status = f"🆓 Бесплатных: {FREE_ATTEMPTS - u.get('attempts', 0)} из {FREE_ATTEMPTS}\n📦 Куплено: {u.get('extra', 0)}\n📊 Доступно: {remaining}"
+                        remaining = FREE_ATTEMPTS - user.get("attempts", 0) + user.get("extra", 0)
+                        text_status = f"🆓 Бесплатных: {FREE_ATTEMPTS - user.get('attempts', 0)} из {FREE_ATTEMPTS}\n📦 Куплено: {user.get('extra', 0)}\n📊 Доступно: {remaining}"
                     send_message(chat_id, f"📊 **Статус**\n\n{text_status}")
-                
+
                 elif text == "/stats":
-                    send_message(chat_id, f"📈 **Ваша статистика**\n\nВсего раскладов сделано: {u.get('total_readings', 0)}\nПопыток осталось: {FREE_ATTEMPTS - u.get('attempts', 0) + u.get('extra', 0)}")
-                
+                    send_message(chat_id, f"📈 **Ваша статистика**\n\nВсего раскладов сделано: {user.get('total_readings', 0)}\nПопыток осталось: {FREE_ATTEMPTS - user.get('attempts', 0) + user.get('extra', 0)}")
+
                 else:
                     send_message(chat_id, "❌ Неизвестная команда. Используй /start")
-            
+
             elif "callback_query" in update:
                 query = update["callback_query"]
                 chat_id = query["message"]["chat"]["id"]
                 message_id = query["message"]["message_id"]
                 data_cb = query["data"]
                 user_id = str(query["from"]["id"])
-                
+
                 if is_admin(user_id):
                     if data_cb in ["life", "love", "work"]:
                         card = get_card()
@@ -268,53 +296,53 @@ class handler(BaseHTTPRequestHandler):
                     answer_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
                     requests.post(answer_url, json={"callback_query_id": query["id"]}, timeout=5)
                     return
-                
-                if user_id not in users:
-                    now = datetime.now()
-                    users[user_id] = {
-                        "attempts": 0,
-                        "extra": 0,
-                        "premium": False,
-                        "premium_until": None,
-                        "month": now.strftime("%Y-%m"),
-                        "total_readings": 0
-                    }
-                
-                u = users[user_id]
+
+                user = get_user(user_id)
+                if not user:
+                    user = create_user(user_id)
+
+                if not user:
+                    edit_message(chat_id, message_id, "❌ Ошибка базы данных")
+                    return
+
                 now = datetime.now()
                 current_month = now.strftime("%Y-%m")
-                
-                if u.get("premium") and u.get("premium_until"):
-                    if now > datetime.fromisoformat(u["premium_until"]):
-                        u["premium"] = False
-                        u["premium_until"] = None
-                
-                if u.get("month") != current_month and not u.get("premium"):
-                    u["attempts"] = 0
-                    u["month"] = current_month
-                
+
+                if user.get("premium") and user.get("premium_until"):
+                    if now > datetime.fromisoformat(user["premium_until"].replace("Z", "+00:00")):
+                        update_user(user_id, {"premium": False, "premium_until": None})
+                        user["premium"] = False
+                        user["premium_until"] = None
+
+                if user.get("month") != current_month and not user.get("premium"):
+                    update_user(user_id, {"attempts": 0, "month": current_month})
+                    user["attempts"] = 0
+                    user["month"] = current_month
+
                 def can_use():
-                    if u.get("premium"):
+                    if user.get("premium"):
                         return True
-                    return u.get("attempts", 0) < FREE_ATTEMPTS or u.get("extra", 0) > 0
-                
+                    return user.get("attempts", 0) < FREE_ATTEMPTS or user.get("extra", 0) > 0
+
                 def use_attempt():
-                    if u.get("premium"):
+                    if user.get("premium"):
                         return
-                    if u.get("attempts", 0) < FREE_ATTEMPTS:
-                        u["attempts"] = u.get("attempts", 0) + 1
-                    elif u.get("extra", 0) > 0:
-                        u["extra"] = u.get("extra", 0) - 1
-                
+                    if user.get("attempts", 0) < FREE_ATTEMPTS:
+                        update_user(user_id, {"attempts": user.get("attempts", 0) + 1})
+                        user["attempts"] = user.get("attempts", 0) + 1
+                    elif user.get("extra", 0) > 0:
+                        update_user(user_id, {"extra": user.get("extra", 0) - 1})
+                        user["extra"] = user.get("extra", 0) - 1
+
                 if data_cb == "status":
-                    if u.get("premium"):
-                        until = u["premium_until"].split("T")[0] if u.get("premium_until") else "неизвестно"
+                    if user.get("premium"):
+                        until = user["premium_until"].split("T")[0] if user.get("premium_until") else "неизвестно"
                         text = f"🌟 Премиум до {until}\n♾️ Безлимит"
                     else:
-                        remaining = FREE_ATTEMPTS - u.get("attempts", 0) + u.get("extra", 0)
-                        text = f"🆓 Бесплатных: {FREE_ATTEMPTS - u.get('attempts', 0)} из {FREE_ATTEMPTS}\n📦 Куплено: {u.get('extra', 0)}\n📊 Доступно: {remaining}"
+                        remaining = FREE_ATTEMPTS - user.get("attempts", 0) + user.get("extra", 0)
+                        text = f"🆓 Бесплатных: {FREE_ATTEMPTS - user.get('attempts', 0)} из {FREE_ATTEMPTS}\n📦 Куплено: {user.get('extra', 0)}\n📊 Доступно: {remaining}"
                     edit_message(chat_id, message_id, f"📊 **Статус**\n\n{text}", [[{"text": "🔙 Назад", "callback_data": "back"}]])
-                
+
                 elif data_cb == "shop":
                     keyboard = [
                         [{"text": "📦 5 попыток — 20 ⭐️", "callback_data": "buy_5"}],
@@ -323,7 +351,7 @@ class handler(BaseHTTPRequestHandler):
                         [{"text": "🔙 Назад", "callback_data": "back"}]
                     ]
                     edit_message(chat_id, message_id, "🛒 **Магазин**\n\nВыбери вариант:", keyboard)
-                
+
                 elif data_cb == "buy_5":
                     send_message(chat_id, "🔄 Оформление заказа на 5 попыток...")
                     invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
@@ -338,7 +366,7 @@ class handler(BaseHTTPRequestHandler):
                         "start_parameter": "buy_5"
                     }
                     requests.post(invoice_url, json=invoice_data, timeout=10)
-                
+
                 elif data_cb == "buy_10":
                     send_message(chat_id, "🔄 Оформление заказа на 10 попыток...")
                     invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
@@ -353,7 +381,7 @@ class handler(BaseHTTPRequestHandler):
                         "start_parameter": "buy_10"
                     }
                     requests.post(invoice_url, json=invoice_data, timeout=10)
-                
+
                 elif data_cb == "buy_premium":
                     send_message(chat_id, "🔄 Оформление премиум-подписки...")
                     invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
@@ -368,7 +396,7 @@ class handler(BaseHTTPRequestHandler):
                         "start_parameter": "premium"
                     }
                     requests.post(invoice_url, json=invoice_data, timeout=10)
-                
+
                 elif data_cb == "back":
                     keyboard = [
                         [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
@@ -378,12 +406,12 @@ class handler(BaseHTTPRequestHandler):
                         [{"text": "📊 Статус", "callback_data": "status"}]
                     ]
                     edit_message(chat_id, message_id, "✨ Выбери тему расклада:", keyboard)
-                
+
                 elif data_cb in ["life", "love", "work"]:
                     if not can_use():
                         edit_message(chat_id, message_id, f"❌ Лимит исчерпан. Зайди в магазин", [[{"text": "🛒 Магазин", "callback_data": "shop"}]])
                         return
-                    
+
                     card = get_card()
                     if data_cb == "life":
                         title = "Расклад на жизнь"
@@ -391,55 +419,47 @@ class handler(BaseHTTPRequestHandler):
                         title = "Расклад на отношения"
                     else:
                         title = "Расклад на работу"
-                    
+
                     send_photo(chat_id, card["img"], title, card["description"])
                     use_attempt()
-                    u["total_readings"] = u.get("total_readings", 0) + 1
-                    
-                    if not u.get("premium"):
-                        remaining = FREE_ATTEMPTS - u.get("attempts", 0) + u.get("extra", 0)
+                    update_user(user_id, {"total_readings": user.get("total_readings", 0) + 1})
+
+                    if not user.get("premium"):
+                        remaining = FREE_ATTEMPTS - user.get("attempts", 0) + user.get("extra", 0)
                         send_message(chat_id, f"Осталось раскладов: {remaining}")
-                
+
                 answer_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
                 requests.post(answer_url, json={"callback_query_id": query["id"]}, timeout=5)
-            
+
             elif "pre_checkout_query" in update:
                 query = update["pre_checkout_query"]
                 answer_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerPreCheckoutQuery"
                 requests.post(answer_url, json={"pre_checkout_query_id": query["id"], "ok": True}, timeout=5)
-            
+
             elif "message" in update and "successful_payment" in update["message"]:
                 user_id = str(update["message"]["from"]["id"])
                 payload = update["message"]["successful_payment"]["payload"]
-                
-                if user_id not in users:
-                    now = datetime.now()
-                    users[user_id] = {
-                        "attempts": 0,
-                        "extra": 0,
-                        "premium": False,
-                        "premium_until": None,
-                        "month": now.strftime("%Y-%m"),
-                        "total_readings": 0
-                    }
-                u = users[user_id]
-                
-                if payload == "extra_5":
-                    u["extra"] = u.get("extra", 0) + 5
-                    send_message(update["message"]["chat"]["id"], "✅ +5 дополнительных попыток!")
-                elif payload == "extra_10":
-                    u["extra"] = u.get("extra", 0) + 10
-                    send_message(update["message"]["chat"]["id"], "✅ +10 дополнительных попыток!")
-                elif payload == "premium_month":
-                    u["premium"] = True
-                    u["premium_until"] = (datetime.now() + timedelta(days=30)).isoformat()
-                    send_message(update["message"]["chat"]["id"], "✅ Премиум-подписка активирована на 30 дней!")
-                
-                send_message(update["message"]["chat"]["id"], "🛍️ Спасибо за покупку! Используй /status для проверки.")
-        
+
+                user = get_user(user_id)
+                if not user:
+                    user = create_user(user_id)
+
+                if user:
+                    if payload == "extra_5":
+                        update_user(user_id, {"extra": user.get("extra", 0) + 5})
+                        send_message(update["message"]["chat"]["id"], "✅ +5 дополнительных попыток!")
+                    elif payload == "extra_10":
+                        update_user(user_id, {"extra": user.get("extra", 0) + 10})
+                        send_message(update["message"]["chat"]["id"], "✅ +10 дополнительных попыток!")
+                    elif payload == "premium_month":
+                        update_user(user_id, {"premium": True, "premium_until": (datetime.now() + timedelta(days=30)).isoformat()})
+                        send_message(update["message"]["chat"]["id"], "✅ Премиум-подписка активирована на 30 дней!")
+
+                    send_message(update["message"]["chat"]["id"], "🛍️ Спасибо за покупку! Используй /status для проверки.")
+
         except Exception as e:
             print(f"Error: {e}")
-        
+
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"ok")
