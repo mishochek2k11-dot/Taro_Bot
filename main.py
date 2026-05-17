@@ -2,8 +2,7 @@ from http.server import BaseHTTPRequestHandler
 import json
 import requests
 import os
-
-BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZLY963j50yw"
+BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZlY963j5Oyw"
 KV_REST_API_URL = os.environ.get("KV_REST_API_URL")
 KV_REST_API_TOKEN = os.environ.get("KV_REST_API_TOKEN")
 
