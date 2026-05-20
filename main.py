@@ -5,35 +5,29 @@ import random
 from datetime import datetime, timedelta
 import os
 
-# ===== НАСТРОЙКИ =====
-BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZlY963j5Oyw"  # ТВОЙ ТОКЕН
+BOT_TOKEN = "8279893361:AAF5MW-v6m-JIMI0-pWSXf1yZlY963j5Oyw"
 ADMIN_ID = "6180185234"
 FREE_ATTEMPTS = 3
 
-# Читаем переменные KV из окружения
 KV_REST_API_URL = os.environ.get("KV_REST_API_URL")
 KV_REST_API_TOKEN = os.environ.get("KV_REST_API_TOKEN")
-# =====================
 
-# --- ФУНКЦИИ ДЛЯ РАБОТЫ С KV ЧЕРЕЗ HTTP ---
 def kv_get(key):
     if not KV_REST_API_URL or not KV_REST_API_TOKEN:
         return None
     try:
-        url = f"{KV_REST_API_URL}/get/{key}"
-        r = requests.get(url, headers={"Authorization": f"Bearer {KV_REST_API_TOKEN}"})
+        r = requests.get(f"{KV_REST_API_URL}/get/{key}", headers={"Authorization": f"Bearer {KV_REST_API_TOKEN}"})
         if r.status_code == 200:
             return r.json().get("result")
-        return None
     except:
-        return None
+        pass
+    return None
 
 def kv_set(key, value):
     if not KV_REST_API_URL or not KV_REST_API_TOKEN:
         return
     try:
-        url = f"{KV_REST_API_URL}/set/{key}"
-        requests.post(url, headers={"Authorization": f"Bearer {KV_REST_API_TOKEN}"}, json={"value": value})
+        requests.post(f"{KV_REST_API_URL}/set/{key}", headers={"Authorization": f"Bearer {KV_REST_API_TOKEN}"}, json={"value": value})
     except:
         pass
 
@@ -48,14 +42,13 @@ def get_user(user_id):
 
 def create_user(user_id):
     now = datetime.now()
-    current_month = now.strftime("%Y-%m")
     user_data = {
         "user_id": user_id,
         "attempts": 0,
         "extra": 0,
         "premium": False,
         "premium_until": None,
-        "month": current_month,
+        "month": now.strftime("%Y-%m"),
         "total_readings": 0
     }
     kv_set(f"user:{user_id}", json.dumps(user_data))
@@ -67,7 +60,6 @@ def update_user(user_id, data):
         user.update(data)
         kv_set(f"user:{user_id}", json.dumps(user))
 
-# --- ВСЕ 78 КАРТ ТАРО (полный список) ---
 CARDS = [
     {"name": "Шут", "img": "00-TheFool.png", "description": "Новое начало, спонтанность, вера в лучшее."},
     {"name": "Маг", "img": "01-TheMagician.png", "description": "Сила воли, мастерство, концентрация."},
@@ -152,7 +144,6 @@ CARDS = [
 def get_card():
     return random.choice(CARDS)
 
-# --- ОСНОВНЫЕ ФУНКЦИИ БОТА ---
 def send_photo(chat_id, image_name, caption, description):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
     image_url = f"https://raw.githubusercontent.com/mishochek2k11-dot/Taro_Bot/main/images/{image_name}"
@@ -201,23 +192,8 @@ class handler(BaseHTTPRequestHandler):
                             [{"text": "📊 Статус", "callback_data": "status"}]
                         ]
                         send_message(chat_id, "✨ Админ-режим. Безлимит.", keyboard)
-                    elif text == "/buy":
-                        keyboard = [
-                            [{"text": "📦 5 попыток — 20 ⭐️", "callback_data": "buy_5"}],
-                            [{"text": "📦 10 попыток — 45 ⭐️", "callback_data": "buy_10"}],
-                            [{"text": "🌟 Премиум на месяц — 75 ⭐️", "callback_data": "buy_premium"}],
-                            [{"text": "🔙 Назад", "callback_data": "back"}]
-                        ]
-                        send_message(chat_id, "🛒 **МАГАЗИН**\n\nВыбери вариант:", keyboard)
-                    elif text == "/status":
-                        send_message(chat_id, "📊 **СТАТУС АДМИНА**\n\n🌟 Безлимитные расклады")
-                    elif text == "/stats":
-                        send_message(chat_id, "📈 **СТАТИСТИКА АДМИНА**\n\nСоздатель бота, безлимит.")
-                    else:
-                        send_message(chat_id, "❌ Неизвестная команда. /start")
                     return
 
-                # --- ОБЫЧНЫЙ ПОЛЬЗОВАТЕЛЬ ---
                 user = get_user(user_id)
                 if not user:
                     user = create_user(user_id)
@@ -253,26 +229,6 @@ class handler(BaseHTTPRequestHandler):
                         "👇 **ВЫБЕРИ ТЕМУ РАСКЛАДА:**"
                     )
                     send_message(chat_id, welcome_text, keyboard)
-                elif text == "/buy":
-                    keyboard = [
-                        [{"text": "📦 5 попыток — 20 ⭐️", "callback_data": "buy_5"}],
-                        [{"text": "📦 10 попыток — 45 ⭐️", "callback_data": "buy_10"}],
-                        [{"text": "🌟 Премиум на месяц — 75 ⭐️", "callback_data": "buy_premium"}],
-                        [{"text": "🔙 Назад", "callback_data": "back"}]
-                    ]
-                    send_message(chat_id, "🛒 **МАГАЗИН**\n\nВыбери вариант:", keyboard)
-                elif text == "/status":
-                    if user.get("premium"):
-                        until = user["premium_until"].split("T")[0] if user.get("premium_until") else "неизвестно"
-                        text_status = f"🌟 ПРЕМИУМ до {until}\n♾️ Безлимит"
-                    else:
-                        remaining = FREE_ATTEMPTS - user.get("attempts", 0) + user.get("extra", 0)
-                        text_status = f"🆓 Бесплатных: {FREE_ATTEMPTS - user.get('attempts', 0)} из {FREE_ATTEMPTS}\n📦 Куплено: {user.get('extra', 0)}\n📊 Доступно: {remaining}"
-                    send_message(chat_id, f"📊 **СТАТУС**\n\n{text_status}")
-                elif text == "/stats":
-                    send_message(chat_id, f"📈 **ВАША СТАТИСТИКА**\n\nВсего раскладов сделано: {user.get('total_readings', 0)}\nПопыток осталось: {FREE_ATTEMPTS - user.get('attempts', 0) + user.get('extra', 0)}")
-                else:
-                    send_message(chat_id, "❌ Неизвестная команда. /start")
 
             elif "callback_query" in update:
                 query = update["callback_query"]
@@ -286,19 +242,6 @@ class handler(BaseHTTPRequestHandler):
                         card = get_card()
                         title = "Расклад на жизнь" if data_cb == "life" else "Расклад на отношения" if data_cb == "love" else "Расклад на работу"
                         send_photo(chat_id, card["img"], title, card["description"])
-                    elif data_cb == "status":
-                        edit_message(chat_id, message_id, "📊 **Статус админа**\n\n🌟 Безлимит", [[{"text": "🔙 Назад", "callback_data": "back"}]])
-                    elif data_cb == "shop":
-                        edit_message(chat_id, message_id, "🛒 **Магазин**\n\nДля админа попытки не нужны", [[{"text": "🔙 Назад", "callback_data": "back"}]])
-                    elif data_cb == "back":
-                        keyboard = [
-                            [{"text": "🔮 Расклад на жизнь", "callback_data": "life"}],
-                            [{"text": "❤️ Расклад на отношения", "callback_data": "love"}],
-                            [{"text": "💼 Расклад на работу", "callback_data": "work"}],
-                            [{"text": "🛒 Магазин", "callback_data": "shop"}],
-                            [{"text": "📊 Статус", "callback_data": "status"}]
-                        ]
-                        edit_message(chat_id, message_id, "✨ ВЫБЕРИ ТЕМУ РАСКЛАДА:", keyboard)
                     requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery", json={"callback_query_id": query["id"]})
                     return
 
@@ -317,29 +260,34 @@ class handler(BaseHTTPRequestHandler):
                     update_user(user_id, {"attempts": 0, "month": current_month})
                     user["attempts"] = 0
 
-                def can_use():
-                    if user.get("premium"):
-                        return True
-                    return user.get("attempts", 0) < FREE_ATTEMPTS or user.get("extra", 0) > 0
-
-                def use_attempt():
-                    if user.get("premium"):
+                # ПРЯМАЯ ЛОГИКА ПОДСЧЁТА ПОПЫТОК
+                if data_cb in ["life", "love", "work"]:
+                    # Проверяем, есть ли ещё попытки
+                    remaining = FREE_ATTEMPTS - user.get("attempts", 0)
+                    if remaining <= 0 and not user.get("premium"):
+                        send_message(chat_id, "❌ ЛИМИТ ИСЧЕРПАН. Купи премиум или дополнительные попытки через /buy")
                         return
-                    if user.get("attempts", 0) < FREE_ATTEMPTS:
-                        user["attempts"] = user.get("attempts", 0) + 1
-                        update_user(user_id, {"attempts": user["attempts"]})
-                    elif user.get("extra", 0) > 0:
-                        user["extra"] = user.get("extra", 0) - 1
-                        update_user(user_id, {"extra": user["extra"]})
 
-                if data_cb == "status":
+                    # Отправляем карту
+                    card = get_card()
+                    title = "Расклад на жизнь" if data_cb == "life" else "Расклад на отношения" if data_cb == "love" else "Расклад на работу"
+                    send_photo(chat_id, card["img"], title, card["description"])
+
+                    # Уменьшаем счётчик и сохраняем
+                    if not user.get("premium"):
+                        new_attempts = user.get("attempts", 0) + 1
+                        update_user(user_id, {"attempts": new_attempts})
+                        remaining = FREE_ATTEMPTS - new_attempts
+                        send_message(chat_id, f"📊 Осталось бесплатных раскладов: {remaining}")
+
+                elif data_cb == "status":
                     if user.get("premium"):
                         until = user["premium_until"].split("T")[0] if user.get("premium_until") else "неизвестно"
                         text = f"🌟 ПРЕМИУМ до {until}\n♾️ Безлимит"
                     else:
-                        remaining = FREE_ATTEMPTS - user.get("attempts", 0) + user.get("extra", 0)
-                        text = f"🆓 Бесплатных: {FREE_ATTEMPTS - user.get('attempts', 0)} из {FREE_ATTEMPTS}\n📦 Куплено: {user.get('extra', 0)}\n📊 Доступно: {remaining}"
-                    edit_message(chat_id, message_id, f"📊 **СТАТУС**\n\n{text}", [[{"text": "🔙 Назад", "callback_data": "back"}]])
+                        remaining = FREE_ATTEMPTS - user.get("attempts", 0)
+                        text = f"🆓 Бесплатных раскладов: {remaining} из {FREE_ATTEMPTS}"
+                    send_message(chat_id, f"📊 **СТАТУС**\n\n{text}")
 
                 elif data_cb == "shop":
                     keyboard = [
@@ -350,48 +298,22 @@ class handler(BaseHTTPRequestHandler):
                     ]
                     edit_message(chat_id, message_id, "🛒 **МАГАЗИН**\n\nВыбери вариант:", keyboard)
 
-                elif data_cb == "buy_5":
-                    send_message(chat_id, "🔄 Оформление заказа на 5 попыток...")
+                elif data_cb in ["buy_5", "buy_10", "buy_premium"]:
+                    amount = 20 if data_cb == "buy_5" else 45 if data_cb == "buy_10" else 75
+                    title = "5 дополнительных попыток" if data_cb == "buy_5" else "10 дополнительных попыток" if data_cb == "buy_10" else "Премиум-подписка"
+                    desc = "Попытки не сгорают" if "buy" in data_cb else "Безлимит на 30 дней"
+                    payload = data_cb
+                    send_message(chat_id, f"🔄 Оформление заказа...")
                     invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
                     invoice_data = {
                         "chat_id": chat_id,
-                        "title": "5 дополнительных попыток",
-                        "description": "Попытки не сгорают в конце месяца",
-                        "payload": "extra_5",
+                        "title": title,
+                        "description": desc,
+                        "payload": payload,
                         "provider_token": "",
                         "currency": "XTR",
-                        "prices": [{"label": "5 попыток", "amount": 20}],
-                        "start_parameter": "buy_5"
-                    }
-                    requests.post(invoice_url, json=invoice_data, timeout=10)
-
-                elif data_cb == "buy_10":
-                    send_message(chat_id, "🔄 Оформление заказа на 10 попыток...")
-                    invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
-                    invoice_data = {
-                        "chat_id": chat_id,
-                        "title": "10 дополнительных попыток",
-                        "description": "Попытки не сгорают в конце месяца",
-                        "payload": "extra_10",
-                        "provider_token": "",
-                        "currency": "XTR",
-                        "prices": [{"label": "10 попыток", "amount": 45}],
-                        "start_parameter": "buy_10"
-                    }
-                    requests.post(invoice_url, json=invoice_data, timeout=10)
-
-                elif data_cb == "buy_premium":
-                    send_message(chat_id, "🔄 Оформление премиум-подписки...")
-                    invoice_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice"
-                    invoice_data = {
-                        "chat_id": chat_id,
-                        "title": "Премиум-подписка",
-                        "description": "Безлимитные расклады на 30 дней",
-                        "payload": "premium_month",
-                        "provider_token": "",
-                        "currency": "XTR",
-                        "prices": [{"label": "Премиум на месяц", "amount": 75}],
-                        "start_parameter": "premium"
+                        "prices": [{"label": title, "amount": amount}],
+                        "start_parameter": data_cb
                     }
                     requests.post(invoice_url, json=invoice_data, timeout=10)
 
@@ -405,25 +327,6 @@ class handler(BaseHTTPRequestHandler):
                     ]
                     edit_message(chat_id, message_id, "✨ ВЫБЕРИ ТЕМУ РАСКЛАДА:", keyboard)
 
-                elif data_cb in ["life", "love", "work"]:
-                    if not can_use():
-                        edit_message(chat_id, message_id, f"❌ ЛИМИТ ИСЧЕРПАН.\nБесплатных попыток: {FREE_ATTEMPTS}\nКупленных: {user.get('extra', 0)}", [[{"text": "🛒 МАГАЗИН", "callback_data": "shop"}]])
-                        return
-
-                    card = get_card()
-                    if data_cb == "life":
-                        title = "Расклад на жизнь"
-                    elif data_cb == "love":
-                        title = "Расклад на отношения"
-                    else:
-                        title = "Расклад на работу"
-
-                    send_photo(chat_id, card["img"], title, card["description"])
-                    use_attempt()
-                    update_user(user_id, {"total_readings": user.get("total_readings", 0) + 1})
-                    remaining = FREE_ATTEMPTS - user.get("attempts", 0)
-                    send_message(chat_id, f"📊 Осталось бесплатных раскладов: {remaining}")
-
                 requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery", json={"callback_query_id": query["id"]})
 
             elif "pre_checkout_query" in update:
@@ -433,16 +336,18 @@ class handler(BaseHTTPRequestHandler):
             elif "message" in update and "successful_payment" in update["message"]:
                 user_id = str(update["message"]["from"]["id"])
                 payload = update["message"]["successful_payment"]["payload"]
-                user = get_user(user_id) or create_user(user_id)
-                if payload == "extra_5":
+                user = get_user(user_id)
+                if not user:
+                    user = create_user(user_id)
+                if payload == "buy_5":
                     update_user(user_id, {"extra": user.get("extra", 0) + 5})
                     send_message(update["message"]["chat"]["id"], "✅ +5 ДОПОЛНИТЕЛЬНЫХ ПОПЫТОК!")
-                elif payload == "extra_10":
+                elif payload == "buy_10":
                     update_user(user_id, {"extra": user.get("extra", 0) + 10})
                     send_message(update["message"]["chat"]["id"], "✅ +10 ДОПОЛНИТЕЛЬНЫХ ПОПЫТОК!")
-                elif payload == "premium_month":
+                elif payload == "buy_premium":
                     update_user(user_id, {"premium": True, "premium_until": (datetime.now() + timedelta(days=30)).isoformat()})
-                    send_message(update["message"]["chat"]["id"], "✅ ПРЕМИУМ-ПОДПИСКА АКТИВИРОВАНА НА 30 ДНЕЙ!")
+                    send_message(update["message"]["chat"]["id"], "✅ ПРЕМИУМ-ПОДПИСКА НА 30 ДНЕЙ!")
                 send_message(update["message"]["chat"]["id"], "🛍️ СПАСИБО ЗА ПОКУПКУ! /status")
 
         except Exception as e:
